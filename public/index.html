@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="es" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IADetector - Verificador Instantáneo de Texto IA</title>
+    
+    <!-- Cargar Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Cargar Fuentes de Google (Inter y JetBrains Mono) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+    
+    <!-- Configuración personalizada de Tailwind -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#2563EB',
+                        'primary-dark': '#1D4ED8',
+                        secondary: '#DC2626', // Alerta/IA
+                        neutral: '#374151',
+                        'neutral-light': '#6B7280',
+                        'neutral-dark': '#1F2937',
+                        lightbg: '#F8FAFC',
+                        success: '#059669', // Humano
+                        warning: '#D97706', // Mixto
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    animation: {
+                        'fade-in': 'fadeIn 0.5s ease-out',
+                        'arrow-bounce': 'arrowBounce 1.5s infinite',
+                        'spin': 'spin 1s linear infinite',
+                    },
+                    keyframes: {
+                        fadeIn: {
+                            '0%': { opacity: 0, transform: 'translateY(10px)' },
+                            '100%': { opacity: 1, transform: 'translateY(0)' },
+                        },
+                        arrowBounce: {
+                            '0%, 100%': { transform: 'translateY(0)' },
+                            '50%': { transform: 'translateY(25%)' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        /* Estilos adicionales para el textarea y la barra de progreso */
+        .text-input {
+            transition: all 0.3s ease;
+            min-height: 200px;
+        }
+        .text-input:focus {
+            box-shadow: 0 0 0 3px theme('colors.primary/30%');
+            border-color: theme('colors.primary');
+        }
+        
+        .confidence-fill {
+            transition: width 0.7s ease-out;
+        }
+    </style>
+</head>
+<body class="bg-lightbg font-sans text-neutral-dark antialiased">
+
+    <!-- 1. HERO SECTION -->
+    <header class="bg-gradient-to-r from-primary to-primary-dark text-white p-8 md:p-16 text-center overflow-hidden">
+        <div class="max-w-4xl mx-auto">
+            <h1 class="text-4xl md:text-5xl font-semibold mb-4">¿Es este texto escrito por IA?</h1>
+            <p class="text-xl md:text-2xl text-blue-100 mb-8">Pega cualquier texto y descúbrelo al instante. Totalmente gratis y sin registros.</p>
+            <a href="#analyzer" class="inline-block bg-white text-primary font-semibold px-8 py-3 rounded-lg shadow-lg hover:bg-gray-100 transition duration-300 transform hover:scale-105">
+                Probar ahora
+                <span class="inline-block animate-arrow-bounce ml-2">↓</span>
+            </a>
+            <p class="mt-6 text-sm text-blue-200 opacity-80">Más de 50,000 textos analizados</p>
+        </div>
+    </header>
+
+    <!-- 2. ÁREA DE ANÁLISIS PRINCIPAL -->
+    <main id="analyzer" class="py-12 md:py-20 px-4">
+        <div class="max-w-3xl mx-auto">
+
+            <!-- Contenedor del analizador -->
+            <div class="analyzer-container bg-white p-6 md:p-8 rounded-xl shadow-xl border border-gray-200">
+                <label for="text-input" class="sr-only">Pega aquí el texto que quieres analizar</label>
+                <textarea id="text-input"
+                    placeholder="Pega aquí el texto que quieres analizar (mínimo 50 caracteres)..."
+                    maxlength="5000"
+                    class="text-input w-full p-4 border border-gray-300 rounded-lg text-base text-neutral-dark focus:outline-none focus:ring-2 focus:ring-primary-dark resize-y"
+                ></textarea>
+                
+                <div class="analysis-controls mt-4 flex flex-col md:flex-row justify-between items-center gap-4">
+                    <button id="analyze-btn" class="analyze-btn w-full md:w-auto bg-primary text-white font-semibold px-8 py-3 rounded-lg shadow-md hover:bg-primary-dark transition duration-300 disabled:bg-gray-400 disabled:cursor-not-allowed disabled:shadow-none flex items-center justify-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                        Analizar Texto
+                    </button>
+                    <span id="char-count" class="char-count font-mono text-sm text-neutral-light">0/5000 caracteres</span>
+                </div>
+            </div>
+
+            <!-- 3. RESULTADO VISUAL (Inicialmente oculto) -->
+            <div id="results-container" class="mt-12 hidden">
+                
+                <!-- Estado de Carga (Spinner) -->
+                <div id="spinner" class="flex flex-col items-center justify-center text-neutral p-8 hidden">
+                    <div class="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+                    <p class="mt-4 text-lg font-semibold">Analizando...</p>
+                </div>
+
+                <!-- Contenedor del Resultado -->
+                <div id="result-content" class="hidden animate-fade-in">
+                    <div id="result-card" class="bg-white p-6 md:p-8 rounded-xl shadow-xl border-t-4 transition-all duration-300">
+                        <!-- Display grande del porcentaje -->
+                        <div class="text-center mb-6">
+                            <span id="percentage-display" class="text-6xl md:text-7xl font-semibold"></span>
+                            <span id="result-label" class="block text-xl font-semibold mt-2 uppercase tracking-wider"></span>
+                        </div>
+                        
+                        <!-- Barra de progreso -->
+                        <div class="confidence-bar w-full bg-gray-200 rounded-full h-4 mb-2 overflow-hidden">
+                            <div id="progress-bar" class="confidence-fill h-full rounded-full"></div>
+                        </div>
+                        <div class="flex justify-between text-sm font-medium text-neutral-light mb-6">
+                            <span>Humano</span>
+                            <span>IA</span>
+                        </div>
+
+                        <!-- Explicación -->
+                        <div class="explanation-box bg-gray-50 p-4 rounded-lg border border-gray-200">
+                            <h3 id="confidence-label" class="text-lg font-semibold text-neutral-dark mb-2"></h3>
+                            <p id="explanation-text" class="text-neutral-light"></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 4. EXPLICACIÓN SIMPLE -->
+            <div class="mt-16 text-neutral-light max-w-2xl mx-auto">
+                <h2 class="text-2xl font-semibold text-neutral-dark mb-4 text-center">Cómo funciona</h2>
+                <div class="space-y-6">
+                    <div>
+                        <h3 class="text-lg font-semibold text-neutral-dark mb-1">¿Qué significa este resultado?</h3>
+                        <p>Nuestro modelo (simulado) analiza el texto en busca de patrones comunes en la escritura generada por IA, como la perplejidad (complejidad) y la rafagosidad (variación de frases). Un puntaje alto no significa definitivamente que sea IA, solo que comparte características con ella.</p>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-semibold text-neutral-dark mb-1">Limitaciones de la Herramienta</h3>
+                        <p>Ningún detector de IA es 100% preciso. Los resultados deben usarse como una referencia y no como una prueba definitiva. Textos muy editados, o de modelos de IA muy avanzados, pueden ser difíciles de clasificar. Esta herramienta es una demostración y no almacena ningún texto analizado.</p>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-semibold text-neutral-dark mb-1">Privacidad Primero</h3>
+                        <p>Tu texto nunca sale de tu navegador ni se almacena en nuestros servidores. El análisis (en esta demostración) se realiza localmente. Tu privacidad está garantizada.</p>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- FOOTER -->
+    <footer class="text-center py-8 mt-12 border-t border-gray-200 bg-white">
+        <p class="text-neutral-light">&copy; 2025 IADetector. Creado como una demostración de concepto.</p>
+        <p class="text-sm text-gray-400 mt-1">Sugerencias de dominio: iadetector.gratis o detectia.com</p>
+    </footer>
+
+    <!-- JavaScript -->
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const textArea = document.getElementById('text-input');
+            const charCount = document.getElementById('char-count');
+            const analyzeBtn = document.getElementById('analyze-btn');
+            const resultsContainer = document.getElementById('results-container');
+            const spinner = document.getElementById('spinner');
+            const resultContent = document.getElementById('result-content');
+            
+            const resultCard = document.getElementById('result-card');
+            const percentageDisplay = document.getElementById('percentage-display');
+            const resultLabel = document.getElementById('result-label');
+            const progressBar = document.getElementById('progress-bar');
+            const confidenceLabel = document.getElementById('confidence-label');
+            const explanationText = document.getElementById('explanation-text');
+
+            const MIN_CHARS = 50;
+            const MAX_CHARS = 5000;
+
+            // --- Actualizar contador de caracteres y estado del botón ---
+            function updateCharCount() {
+                const count = textArea.value.length;
+                charCount.textContent = `${count}/${MAX_CHARS} caracteres`;
+
+                if (count >= MIN_CHARS) {
+                    analyzeBtn.disabled = false;
+                    charCount.classList.remove('text-secondary');
+                    charCount.classList.add('text-neutral-light');
+                } else {
+                    analyzeBtn.disabled = true;
+                    if (count > 0) {
+                        charCount.classList.add('text-secondary');
+                        charCount.classList.remove('text-neutral-light');
+                    }
+                }
+            }
+
+            // --- Manejar el clic del botón de análisis ---
+            async function handleAnalysis() {
+                const text = textArea.value;
+                if (text.length < MIN_CHARS) return;
+
+                // 1. Mostrar estado de carga
+                resultsContainer.classList.remove('hidden');
+                spinner.classList.remove('hidden');
+                resultContent.classList.add('hidden');
+                analyzeBtn.disabled = true;
+                textArea.disabled = true;
+                analyzeBtn.innerHTML = `
+                    <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Analizando...`;
+
+                // 2. Simular llamada a API
+                try {
+                    const result = await simulateApiCall(text);
+                    
+                    // 3. Mostrar resultados
+                    displayResults(result);
+
+                } catch (error) {
+                    console.error("Error en el análisis:", error);
+                    // Aquí se podría mostrar un mensaje de error
+                } finally {
+                    // 4. Limpiar estado de carga
+                    spinner.classList.add('hidden');
+                    resultContent.classList.remove('hidden');
+                    analyzeBtn.disabled = false;
+                    textArea.disabled = false;
+                    analyzeBtn.innerHTML = `
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                        Analizar Texto`;
+                }
+            }
+
+            // --- Simulación de la API ---
+            function simulateApiCall(text) {
+                return new Promise(resolve => {
+                    // Simular un retraso de red (0.8s - 1.5s)
+                    const delay = Math.random() * 700 + 800;
+                    
+                    setTimeout(() => {
+                        // Generar un porcentaje aleatorio
+                        const percentage = Math.floor(Math.random() * 101);
+                        const confidences = ['Alta', 'Media', 'Baja'];
+                        const confidence = confidences[Math.floor(Math.random() * 3)];
+                        
+                        resolve({ percentage, confidence });
+                    }, delay);
+                });
+            }
+
+            // --- Mostrar los resultados en la UI ---
+            function displayResults(result) {
+                const { percentage, confidence } = result;
+
+                let label, explanation, cardBorder, progressBg, textCls;
+
+                // Definir colores y textos basados en el porcentaje
+                if (percentage <= 30) {
+                    label = "Probablemente Humano";
+                    explanation = "El texto muestra una variación y estilo de escritura consistentes con un autor humano. Baja probabilidad de IA.";
+                    cardBorder = 'border-success';
+                    progressBg = 'bg-success';
+                    textCls = 'text-success';
+                } else if (percentage <= 70) {
+                    label = "Mixto o Incierto";
+                    explanation = "El texto contiene una mezcla de patrones. Puede ser un texto humano editado con IA, o viceversa. Se recomienda una revisión manual.";
+                    cardBorder = 'border-warning';
+                    progressBg = 'bg-warning';
+                    textCls = 'text-warning';
+                } else {
+                    label = "Probablemente IA";
+                    explanation = "Este texto muestra patrones de consistencia, estructura de frases y uso de palabras típicos de un modelo de lenguaje (como GPT).";
+                    cardBorder = 'border-secondary';
+                    progressBg = 'bg-secondary';
+                    textCls = 'text-secondary';
+                }
+
+                // Limpiar clases anteriores
+                resultCard.className = resultCard.className.replace(/border-\w+/g, '');
+                percentageDisplay.className = percentageDisplay.className.replace(/text-\w+/g, '');
+                resultLabel.className = resultLabel.className.replace(/text-\w+/g, '');
+                progressBar.className = progressBar.className.replace(/bg-\w+/g, '');
+
+                // Aplicar nuevas clases
+                resultCard.classList.add(cardBorder);
+                percentageDisplay.classList.add(textCls, 'text-6xl', 'md:text-7xl', 'font-semibold');
+                resultLabel.classList.add(textCls, 'block', 'text-xl', 'font-semibold', 'mt-2', 'uppercase', 'tracking-wider');
+                progressBar.classList.add(progressBg, 'confidence-fill', 'h-full', 'rounded-full');
+
+                // Establecer valores
+                percentageDisplay.textContent = `${percentage}%`;
+                resultLabel.textContent = label;
+                confidenceLabel.textContent = `Confianza del Análisis: ${confidence}`;
+                explanationText.textContent = explanation;
+                
+                // Animar la barra de progreso
+                setTimeout(() => {
+                    progressBar.style.width = `${percentage}%`;
+                }, 100); // Pequeño retraso para permitir que la UI se renderice
+            }
+
+            // --- Inicialización ---
+            textArea.addEventListener('input', updateCharCount);
+            analyzeBtn.addEventListener('click', handleAnalysis);
+            
+            // Establecer estado inicial del botón
+            updateCharCount();
+        });
+    </script>
+</body>
+</html>
